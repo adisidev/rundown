@@ -56,8 +56,9 @@ Global hotkeys (no Accessibility permission needed):
 | `⌃⌥←` | previous segment (keeps accumulating into it) |
 | `⌃⌥R` | reset |
 | `⌃⌥N` | hide / show the panel |
+| `⌃⌥Q` | quit |
 
-Clicking the compact panel = start when idle, next while running, resume when paused, reset when finished. The menu bar item has Open / Open Recent / Reload / Edit and the same controls.
+Clicking the compact panel = start when idle, next while running, resume when paused, reset when finished. Right-click it for a small menu (open, start/pause, reset, quit); the expanded view has a ⏻ button too. The menu bar item (timer icon) has Open / Open Recent / Reload / Edit, the same controls, and Quit.
 
 The loaded file is watched: edits reload immediately while idle; during a run they show a "file changed · reload" button in the expanded view instead of interrupting you.
 

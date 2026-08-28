@@ -7,11 +7,11 @@ struct NotchGeometry: Equatable {
     var hasNotch: Bool
     var notchWidth: CGFloat
     var notchHeight: CGFloat
-    var wing: CGFloat = 175
+    var wing: CGFloat = 110
 
     var compactWidth: CGFloat { notchWidth + 2 * wing }
     var compactHeight: CGFloat { hasNotch ? notchHeight : 34 }
-    var expandedWidth: CGFloat { max(compactWidth, 500) }
+    var expandedWidth: CGFloat { max(compactWidth, 440) }
     var expandedHeight: CGFloat { compactHeight + 216 }
 
     static let pill = NotchGeometry(hasNotch: false, notchWidth: 0, notchHeight: 0)
@@ -31,4 +31,5 @@ struct PanelActions {
     var playPause: () -> Void = {}
     var open: () -> Void = {}
     var reload: () -> Void = {}
+    var quit: () -> Void = {}
 }

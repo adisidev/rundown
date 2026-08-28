@@ -55,6 +55,14 @@ struct NotchView: View {
         .opacity(runner.state == .paused ? 0.6 : 1)
         .contentShape(Rectangle())
         .onTapGesture { actions.primary() }
+        .contextMenu {
+            Button("Open Routine…") { actions.open() }
+            Button(runner.state == .running ? "Pause" : "Start / Resume") { actions.playPause() }
+                .disabled(!runner.hasRoutine || runner.state == .finished)
+            Button("Reset") { runner.reset() }.disabled(!runner.hasStarted)
+            Divider()
+            Button("Quit rundown") { actions.quit() }
+        }
     }
 
     private var leftWing: some View {
@@ -63,7 +71,7 @@ struct NotchView: View {
                 Image(systemName: "pause.fill").font(.system(size: 10)).foregroundStyle(.secondary)
             }
             Text(segmentLabel)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 4)
@@ -72,20 +80,20 @@ struct NotchView: View {
                 .monospacedDigit()
                 .foregroundStyle(segmentTimeColor)
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
     }
 
     private var rightWing: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Text(totalLabel)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
             paceChip
             Spacer(minLength: 0)
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 14)
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
     }
 
     private var segmentLabel: String {
@@ -306,6 +314,7 @@ struct NotchView: View {
                 .buttonStyle(.plain)
             }
             control("folder", enabled: true) { actions.open() }
+            control("power", enabled: true) { actions.quit() }
         }
         .padding(.top, 2)
     }

@@ -48,4 +48,5 @@ enum KeyCode {
     static let rightArrow: UInt32 = 124
     static let r: UInt32 = 15
     static let n: UInt32 = 45
+    static let q: UInt32 = 12
 }

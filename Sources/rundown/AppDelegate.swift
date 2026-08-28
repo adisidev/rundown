@@ -29,7 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             primary: { [weak self] in self?.primaryAction() },
             playPause: { [weak self] in self?.runner.togglePause() },
             open: { [weak self] in self?.openRoutine() },
-            reload: { [weak self] in self?.reload(force: true) }
+            reload: { [weak self] in self?.reload(force: true) },
+            quit: { NSApp.terminate(nil) }
         )
         panel = NotchPanelController(runner: runner, ticker: ticker, state: panelState, actions: actions)
         setupStatusItem()
@@ -141,7 +142,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         show.keyEquivalentModifierMask = ctrlOpt
         menu.addItem(show)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit rundown", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        let quit = NSMenuItem(title: "Quit rundown", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.keyEquivalentModifierMask = ctrlOpt
+        menu.addItem(quit)
 
         menu.autoenablesItems = false
         statusItem.menu = menu
@@ -157,6 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(keyCode: KeyCode.leftArrow, modifiers: mods) { [weak self] in self?.runner.previous() }
         hotKeys.register(keyCode: KeyCode.r, modifiers: mods) { [weak self] in self?.runner.reset() }
         hotKeys.register(keyCode: KeyCode.n, modifiers: mods) { [weak self] in self?.panel.toggleVisibility() }
+        hotKeys.register(keyCode: KeyCode.q, modifiers: mods) { NSApp.terminate(nil) }
     }
 
     // MARK: Actions
