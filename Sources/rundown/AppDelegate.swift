@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             playPause: { [weak self] in self?.runner.togglePause() },
             open: { [weak self] in self?.openRoutine() },
             reload: { [weak self] in self?.reload(force: true) },
-            quit: { NSApp.terminate(nil) }
+            quit: { NSApp.terminate(nil) },
+            scratch: { [weak self] in self?.openScratch() },
+            edit: { [weak self] in self?.editRoutine() }
         )
         panel = NotchPanelController(runner: runner, ticker: ticker, state: panelState, actions: actions)
         setupStatusItem()
@@ -39,7 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ticker.$now.sink { [weak self] _ in self?.updateStatusTitle() }.store(in: &cancellables)
         runner.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] in self?.rebuildMenu() }.store(in: &cancellables)
 
-        if let path = CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+        let args = CommandLine.arguments.dropFirst()
+        if args.contains("--scratch") {
+            openScratch()
+        } else if let path = args.first(where: { !$0.hasPrefix("-") }) {
             load(URL(fileURLWithPath: path))
         } else if let last = recents.first, FileManager.default.fileExists(atPath: last) {
             load(URL(fileURLWithPath: last))
@@ -78,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let open = NSMenuItem(title: "Open Routine…", action: #selector(openRoutine), keyEquivalent: "o")
         menu.addItem(open)
+        let scratch = NSMenuItem(title: "Scratch Routine", action: #selector(openScratch), keyEquivalent: "n")
+        scratch.toolTip = "A personal scratch file you can edit on the go; opens in your default markdown editor and reloads on save."
+        menu.addItem(scratch)
 
         let recentItem = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu()
@@ -203,9 +211,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    // MARK: Scratch routine
+
+    private static let scratchTemplate = """
+    # Scratch routine
+
+    <!-- One segment per line or comma-separated. Durations: 5m, 90s, 1h30m, 2:30. "?" = stopwatch (open-ended). Edits reload while idle. -->
+
+    5m intro
+    10m main part
+    ? questions
+
+    """
+
+    private var scratchURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("rundown", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("scratch.md")
+    }
+
+    /// Loads the personal scratch file (creating it from a template on first use) and opens it in the default markdown editor.
+    @objc private func openScratch() {
+        let url = scratchURL
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? Self.scratchTemplate.write(to: url, atomically: true, encoding: .utf8)
+        }
+        load(url)
+        NSWorkspace.shared.open(url)
+    }
+
     // MARK: Loading
 
-    private func load(_ url: URL) {
+    private func load(_ url: URL, quiet: Bool = false) {
         do {
             let text = try String(contentsOf: url, encoding: .utf8)
             let routine = try Parser.parse(text)
@@ -213,10 +251,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             currentURL = url
             panelState.fileName = url.deletingPathExtension().lastPathComponent
             panelState.pendingReload = false
+            panelState.loadError = nil
             recents = [url.path] + recents.filter { $0 != url.path }
             watcher = FileWatcher(url: url) { [weak self] in self?.fileChanged() }
             rebuildMenu()
         } catch {
+            if quiet {
+                panelState.loadError = error.localizedDescription
+                return
+            }
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.messageText = "Couldn't load \(url.lastPathComponent)"
@@ -233,6 +276,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func reload(force: Bool) {
         guard let url = currentURL else { return }
         if !force, runner.state != .idle { panelState.pendingReload = true; return }
-        load(url)
+        load(url, quiet: true)
     }
 }

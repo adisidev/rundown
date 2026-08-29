@@ -57,6 +57,9 @@ struct NotchView: View {
         .onTapGesture { actions.primary() }
         .contextMenu {
             Button("Open Routine…") { actions.open() }
+            Button("Scratch Routine") { actions.scratch() }
+            Button("Edit in Editor") { actions.edit() }.disabled(state.fileName == nil)
+            Divider()
             Button(runner.state == .running ? "Pause" : "Start / Resume") { actions.playPause() }
                 .disabled(!runner.hasRoutine || runner.state == .finished)
             Button("Reset") { runner.reset() }.disabled(!runner.hasStarted)
@@ -78,6 +81,9 @@ struct NotchView: View {
             Text(segmentTime)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .layoutPriority(1)
                 .foregroundStyle(segmentTimeColor)
         }
         .padding(.leading, 12)
@@ -89,6 +95,9 @@ struct NotchView: View {
             Text(totalLabel)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .layoutPriority(1)
             paceChip
             Spacer(minLength: 0)
         }
@@ -173,10 +182,11 @@ struct NotchView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(paceColor)
             }
-            Text(subline)
+            Text(state.loadError.map { "⚠︎ " + $0 } ?? subline)
                 .font(.system(size: 11))
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .foregroundStyle(state.loadError == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
 
             if runner.hasRoutine {
                 ScrollViewReader { proxy in
@@ -192,7 +202,7 @@ struct NotchView: View {
                 }
                 .frame(maxHeight: .infinity)
             } else {
-                Text("Open a .md file: `5m intro, 10m demo, ? questions` — one line or one segment per line.")
+                Text("Open a .md file, or start a scratch routine (✎) and edit it in your markdown editor: `5m intro, 10m demo, ? questions` — one line or one segment per line.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .frame(maxHeight: .infinity, alignment: .center)
@@ -314,6 +324,8 @@ struct NotchView: View {
                 .buttonStyle(.plain)
             }
             control("folder", enabled: true) { actions.open() }
+            control("square.and.pencil", enabled: true) { actions.scratch() }
+            control("pencil", enabled: state.fileName != nil) { actions.edit() }
             control("power", enabled: true) { actions.quit() }
         }
         .padding(.top, 2)

@@ -60,6 +60,8 @@ Global hotkeys (no Accessibility permission needed):
 
 Clicking the compact panel = start when idle, next while running, resume when paused, reset when finished. Right-click it for a small menu (open, start/pause, reset, quit); the expanded view has a ⏻ button too. The menu bar item (timer icon) has Open / Open Recent / Reload / Edit, the same controls, and Quit.
 
+**Scratch routine** (menu bar → Scratch Routine, right-click → Scratch Routine, or ✎ in the expanded view) creates `~/Library/Application Support/rundown/scratch.md` from a template on first use, loads it, and opens it in your default markdown editor — edit it on the go, and each save reloads it. The pencil button / "Edit Routine…" opens whichever file is currently loaded the same way.
+
 The loaded file is watched: edits reload immediately while idle; during a run they show a "file changed · reload" button in the expanded view instead of interrupting you.
 
 ## Build & run
@@ -71,6 +73,7 @@ make test                    # parser + runner unit tests
 make run FILE=examples/talk.md
 make install                 # → /Applications/rundown.app
 open -a rundown talk.md      # or: rundown.app/Contents/MacOS/rundown talk.md
+open -a rundown --args --scratch   # jump straight into the scratch routine
 ```
 
 With no argument it reopens the last routine.

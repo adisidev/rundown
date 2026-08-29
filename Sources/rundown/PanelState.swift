@@ -23,6 +23,8 @@ final class PanelState: ObservableObject {
     @Published var expanded = false
     @Published var pendingReload = false
     @Published var fileName: String?
+    /// Parse error from the last watched reload, shown inline instead of an alert.
+    @Published var loadError: String?
 }
 
 /// Things the view can ask the app to do.
@@ -32,4 +34,6 @@ struct PanelActions {
     var open: () -> Void = {}
     var reload: () -> Void = {}
     var quit: () -> Void = {}
+    var scratch: () -> Void = {}
+    var edit: () -> Void = {}
 }
