@@ -12,7 +12,8 @@ struct NotchGeometry: Equatable {
     var tall = false
 
     var compactWidth: CGFloat { notchWidth + 2 * wing }
-    var compactHeight: CGFloat { hasNotch ? notchHeight : 34 }
+    /// Notch height on notched screens; on others `notchHeight` holds the menu bar's height, so the bar sits in the menu bar.
+    var compactHeight: CGFloat { notchHeight > 0 ? notchHeight : 24 }
     var expandedWidth: CGFloat { max(compactWidth, 440) }
     var expandedHeight: CGFloat { compactHeight + (tall ? 330 : 216) }
 

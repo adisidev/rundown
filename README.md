@@ -4,7 +4,7 @@ A talk/routine pacer that lives in the MacBook notch. Write your segments as mar
 
 ## Install
 
-Download [rundown.zip](https://github.com/adisidev/rundown/releases/latest/download/rundown.zip), unzip it, drag `rundown.app` to Applications and open it. It's signed and notarised and needs macOS 14 or later. Macs without a notch get the same panel at the top centre of the screen, plus the time in the menu bar.
+Download [rundown.zip](https://github.com/adisidev/rundown/releases/latest/download/rundown.zip), unzip it, drag `rundown.app` to Applications and open it. It's signed and notarised and needs macOS 14 or later. The panel follows the display you're working on (the one with the frontmost window); menu bar → Show On pins it to one display instead. On a display with a notch it hugs the notch; on others it sits in the middle of the menu bar.
 
 ## Format
 

@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 import RundownCore
 
@@ -42,6 +43,7 @@ final class HostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class NotchPanelController {
+    static let log = Logger(subsystem: "dev.adisi.rundown", category: "panel")
     let panel: NotchPanel
     let state: PanelState
     private let hover = HoverView()
@@ -74,6 +76,13 @@ final class NotchPanelController {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.layout() }
+        let ws = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification] {
+            ws.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                // Let the newly active app's window come forward before reading the window list.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.followActiveScreen() }
+            }
+        }
         panel.orderFrontRegardless()
     }
 
@@ -89,14 +98,45 @@ final class NotchPanelController {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
-    /// Picks the screen with a notch (safe-area inset at the top), else the main screen, and pins the panel there.
-    func layout() {
+    /// Name of the display to stay on; nil follows the display you're working on.
+    var pinnedScreen: String? {
+        didSet { layout() }
+    }
+    private var lastScreen: String?
+
+    /// The display holding the frontmost app's frontmost window (window bounds need no permission), else the
+    /// display with the menu bar.
+    private func activeScreen() -> NSScreen? {
         let screens = NSScreen.screens
-        let notched = screens.first { $0.safeAreaInsets.top > 0 }
-        guard let screen = notched ?? NSScreen.main ?? screens.first else { return }
+        if let name = pinnedScreen, let s = screens.first(where: { $0.localizedName == name }) { return s }
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+              let win = list.first(where: { ($0[kCGWindowOwnerPID as String] as? pid_t) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }),
+              let dict = win[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: dict)
+        else { return screens.first }
+        // CG window bounds have a top-left origin on the primary display; flip to AppKit's bottom-left.
+        let primaryHeight = screens.first?.frame.height ?? 0
+        let center = CGPoint(x: rect.midX, y: primaryHeight - rect.midY)
+        return screens.first { $0.frame.contains(center) } ?? screens.first
+    }
+
+    /// Re-pins the panel if the active display changed (cheap enough to call on every app switch).
+    func followActiveScreen() {
+        guard pinnedScreen == nil, let s = activeScreen(), s.localizedName != lastScreen else { return }
+        layout()
+    }
+
+    /// Pins the panel to the top of the active display: hugging the notch if it has one, else inside its menu bar.
+    func layout() {
+        guard let screen = activeScreen() else { return }
+        lastScreen = screen.localizedName
+        Self.log.notice("panel on \(screen.localizedName, privacy: .public) \(NSStringFromRect(screen.frame), privacy: .public) front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-", privacy: .public)")
 
         var g = NotchGeometry.pill
         g.tall = state.geometry.tall
+        // Menu bar height; zero when it auto-hides (compactHeight then falls back to 24).
+        g.notchHeight = screen.frame.maxY - screen.visibleFrame.maxY
         var centerX = screen.frame.midX
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea, screen.safeAreaInsets.top > 0 {
             g = NotchGeometry(hasNotch: true,

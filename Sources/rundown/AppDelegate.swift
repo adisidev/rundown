@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             copyMissed: { [weak self] in self?.copyMissed() }
         )
         panel = NotchPanelController(runner: runner, ticker: ticker, state: panelState, actions: actions)
+        panel.pinnedScreen = UserDefaults.standard.string(forKey: pinnedScreenKey)
         setupStatusItem()
         setupHotKeys()
 
@@ -204,6 +205,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let show = NSMenuItem(title: panel.isVisible ? "Hide Panel" : "Show Panel", action: #selector(togglePanel), keyEquivalent: "n")
         show.keyEquivalentModifierMask = ctrlOpt
         menu.addItem(show)
+
+        let showOn = NSMenuItem(title: "Show On", action: nil, keyEquivalent: "")
+        let screensMenu = NSMenu()
+        let follow = NSMenuItem(title: "Display You're Working On", action: #selector(pinScreen(_:)), keyEquivalent: "")
+        follow.state = panel.pinnedScreen == nil ? .on : .off
+        screensMenu.addItem(follow)
+        screensMenu.addItem(.separator())
+        for screen in NSScreen.screens {
+            let item = NSMenuItem(title: screen.localizedName, action: #selector(pinScreen(_:)), keyEquivalent: "")
+            item.representedObject = screen.localizedName
+            item.state = panel.pinnedScreen == screen.localizedName ? .on : .off
+            screensMenu.addItem(item)
+        }
+        showOn.submenu = screensMenu
+        menu.addItem(showOn)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit rundown", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.keyEquivalentModifierMask = ctrlOpt
@@ -247,6 +263,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func reloadFromMenu() { reload(force: true) }
     @objc private func clearRecents() { recents = []; rebuildMenu() }
     @objc private func tickNext() { runner.checkNext() }
+
+    private let pinnedScreenKey = "pinnedScreen"
+
+    @objc private func pinScreen(_ sender: NSMenuItem) {
+        let name = sender.representedObject as? String
+        panel.pinnedScreen = name
+        UserDefaults.standard.set(name, forKey: pinnedScreenKey)
+        rebuildMenu()
+    }
     @objc private func toggleCountUp() { setCountUp(!runner.countUp) }
 
     // MARK: Count-up mode (remembered per file)
