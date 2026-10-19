@@ -51,4 +51,5 @@ enum KeyCode {
     static let q: UInt32 = 12
     static let c: UInt32 = 8
     static let u: UInt32 = 32
+    static let p: UInt32 = 35
 }

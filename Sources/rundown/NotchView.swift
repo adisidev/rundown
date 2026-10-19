@@ -8,6 +8,8 @@ struct NotchView: View {
     let actions: PanelActions
 
     private var g: NotchGeometry { state.geometry }
+    /// Pointer position (screen coordinates) and body size when a resize drag began.
+    @State private var resizeStart: (mouse: CGPoint, size: CGSize)?
     private var expanded: Bool { state.expanded }
 
     var body: some View {
@@ -24,13 +26,18 @@ struct NotchView: View {
                     expandedBody
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .transition(.opacity)
                 }
             }
             .frame(width: width, height: height)
             .clipped()
+            if expanded {
+                resizeGrip
+                    .frame(width: width, height: height, alignment: .bottomTrailing)
+                    .transition(.opacity)
+            }
         }
         .frame(width: width, height: height)
         .animation(.spring(duration: 0.26, bounce: 0.08), value: expanded)
@@ -435,12 +442,53 @@ struct NotchView: View {
                 }
                 .buttonStyle(.plain)
             }
+            control(state.pinned ? "pin.fill" : "pin", enabled: true) { actions.togglePin() }
+                .help(state.pinned ? "Unpin: close when the pointer leaves" : "Pin: keep the panel open")
             control("folder", enabled: true) { actions.open() }
             control("square.and.pencil", enabled: true) { actions.scratch() }
             control("pencil", enabled: state.fileName != nil) { actions.edit() }
             control("power", enabled: true) { actions.quit() }
         }
         .padding(.top, 2)
+    }
+
+    /// Bottom-right corner grip: drag to resize (width grows on both sides, since the panel stays centred),
+    /// double-click to go back to the default size. Uses the screen pointer position, because the window itself
+    /// moves and resizes under the drag.
+    private var resizeGrip: some View {
+        Path { p in
+            for i in 0..<3 {
+                let o = CGFloat(i) * 4
+                p.move(to: CGPoint(x: 11, y: o + 1))
+                p.addLine(to: CGPoint(x: o + 1, y: 11))
+            }
+        }
+        .stroke(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+        .frame(width: 12, height: 12)
+        .padding(5)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { _ in
+                    let m = NSEvent.mouseLocation
+                    if resizeStart == nil {
+                        resizeStart = (m, CGSize(width: g.bodyWidth, height: g.bodyHeight))
+                        state.resizing = true
+                    }
+                    guard let s = resizeStart else { return }
+                    actions.resize(CGSize(width: s.size.width + 2 * (m.x - s.mouse.x),
+                                          height: s.size.height - (m.y - s.mouse.y)))
+                }
+                .onEnded { _ in
+                    resizeStart = nil
+                    state.resizing = false
+                    actions.resizeEnded()
+                }
+        )
+        .onTapGesture(count: 2) { actions.resizeReset() }
+        .help("Drag to resize · double-click to reset")
+        .padding(.trailing, 3)
+        .padding(.bottom, 3)
     }
 
     private func control(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {

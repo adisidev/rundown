@@ -72,6 +72,7 @@ final class NotchPanelController {
         hover.onHover = { [weak self] inside in self?.setHover(inside) }
         panel.contentView = hover
 
+        restorePinAndSize()
         layout()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -88,10 +89,49 @@ final class NotchPanelController {
 
     var isVisible: Bool { panel.isVisible }
 
-    func setTall(_ tall: Bool) {
-        guard state.geometry.tall != tall else { return }
-        state.geometry.tall = tall
+    // MARK: Pin and size (both remembered)
+
+    private let pinnedKey = "panelPinned", sizeKey = "panelBodySize"
+    private var screenFrame = CGRect.zero
+
+    func togglePin() {
+        state.pinned.toggle()
+        UserDefaults.standard.set(state.pinned, forKey: pinnedKey)
+        if state.pinned {
+            state.expanded = true
+        } else if !shapeRect().contains(hover.convert(panel.mouseLocationOutsideOfEventStream, from: nil)) {
+            state.expanded = false
+        }
+    }
+
+    /// Clamps a proposed body size to the display (it must stay below the menu bar and inside the screen).
+    func setBodySize(_ size: CGSize) {
+        let maxW = max(NotchGeometry.minBody.width, screenFrame.width - 40)
+        let maxH = max(NotchGeometry.minBody.height, screenFrame.height * 0.85 - state.geometry.compactHeight)
+        let w = min(maxW, max(NotchGeometry.minBody.width, size.width.rounded()))
+        let h = min(maxH, max(NotchGeometry.minBody.height, size.height.rounded()))
+        guard w != state.geometry.bodyWidth || h != state.geometry.bodyHeight else { return }
+        state.geometry.bodyWidth = w
+        state.geometry.bodyHeight = h
         layout()
+    }
+
+    func saveBodySize() {
+        UserDefaults.standard.set([state.geometry.bodyWidth, state.geometry.bodyHeight], forKey: sizeKey)
+    }
+
+    func resetBodySize() {
+        setBodySize(NotchGeometry.defaultBody)
+        saveBodySize()
+    }
+
+    private func restorePinAndSize() {
+        state.pinned = UserDefaults.standard.bool(forKey: pinnedKey)
+        state.expanded = state.pinned
+        if let s = UserDefaults.standard.array(forKey: sizeKey) as? [Double], s.count == 2 {
+            state.geometry.bodyWidth = s[0]
+            state.geometry.bodyHeight = s[1]
+        }
     }
 
     func toggleVisibility() {
@@ -137,8 +177,10 @@ final class NotchPanelController {
         lastScreen = screen.localizedName
         Self.log.notice("panel on \(screen.localizedName, privacy: .public) \(NSStringFromRect(screen.frame), privacy: .public) front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-", privacy: .public)")
 
+        screenFrame = screen.frame
         var g = NotchGeometry.pill
-        g.tall = state.geometry.tall
+        g.bodyWidth = state.geometry.bodyWidth
+        g.bodyHeight = state.geometry.bodyHeight
         // Menu bar height; zero when it auto-hides (compactHeight then falls back to 24).
         g.notchHeight = screen.frame.maxY - screen.visibleFrame.maxY
         var centerX = screen.frame.midX
@@ -146,7 +188,8 @@ final class NotchPanelController {
             g = NotchGeometry(hasNotch: true,
                               notchWidth: right.minX - left.maxX,
                               notchHeight: screen.safeAreaInsets.top,
-                              tall: g.tall)
+                              bodyWidth: g.bodyWidth,
+                              bodyHeight: g.bodyHeight)
             centerX = (left.maxX + right.minX) / 2
         }
         state.geometry = g
@@ -172,7 +215,7 @@ final class NotchPanelController {
             collapseTimer?.invalidate()
             collapseTimer = nil
             if !state.expanded { state.expanded = true }
-        } else if state.expanded, collapseTimer == nil {
+        } else if state.expanded, !state.pinned, !state.resizing, collapseTimer == nil {
             collapseTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
                 self?.state.expanded = false
                 self?.collapseTimer = nil

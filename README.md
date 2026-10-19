@@ -64,6 +64,8 @@ Definitions:
 - **drift** = Σ (actual − planned) over finished timed segments + the overtime of the current segment. Finishing a segment early puts you ahead; running over puts you behind as it happens. |drift| < 20s counts as on track.
 - **remaining** = what's left of the current segment (never negative) + all future planned segments. **Projected end** = now + remaining, so it slips forward as you run over.
 
+**Pin and resize.** The panel opens at a compact size and its list scrolls. The pin button (or `⌃⌥P`, or menu bar → Keep Panel Open) keeps it open when the pointer leaves, which is handy for a checklist during a call. Drag the grip in its bottom-right corner to make it bigger or smaller (it stays centred under the notch, so it widens on both sides); double-click the grip for the default size. Pin state and size are remembered.
+
 **Count up.** Menu bar → Count Up (or `⌃⌥U`) runs the same file as a stopwatch: every segment counts up and there are no countdowns or pace. Durations stay in the file, so you can switch either way. It's remembered per file.
 
 **After a run.** When the last segment ends, rundown saves a markdown log (times per segment, ticked and missed items) in `~/Library/Application Support/rundown/runs/`; menu bar → Show Past Runs opens it. "copy missed" in the expanded view (or menu bar → Copy Missed Items) copies the missed items grouped by segment, ready for a follow-up message.
@@ -82,6 +84,7 @@ Global hotkeys (no Accessibility permission needed):
 | `⌃⌥R` | reset |
 | `⌃⌥C` | tick the next item in the current segment |
 | `⌃⌥U` | count up on/off |
+| `⌃⌥P` | keep the panel open (pin) |
 | `⌃⌥N` | hide / show the panel |
 | `⌃⌥Q` | quit |
 

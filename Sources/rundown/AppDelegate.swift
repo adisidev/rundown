@@ -35,7 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             scratch: { [weak self] in self?.openScratch() },
             edit: { [weak self] in self?.editRoutine() },
             setCountUp: { [weak self] in self?.setCountUp($0) },
-            copyMissed: { [weak self] in self?.copyMissed() }
+            copyMissed: { [weak self] in self?.copyMissed() },
+            togglePin: { [weak self] in self?.togglePin() },
+            resize: { [weak self] in self?.panel.setBodySize($0) },
+            resizeEnded: { [weak self] in self?.panel.saveBodySize() },
+            resizeReset: { [weak self] in self?.panel.resetBodySize() }
         )
         panel = NotchPanelController(runner: runner, ticker: ticker, state: panelState, actions: actions)
         panel.pinnedScreen = UserDefaults.standard.string(forKey: pinnedScreenKey)
@@ -88,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         offset = 330; runner.next()
         runner.checkNext(); runner.checkNext()
         offset = 720
-        panelState.geometry = NotchGeometry(hasNotch: true, notchWidth: 185, notchHeight: 32, tall: runner.hasChecklist)
+        panelState.geometry = NotchGeometry(hasNotch: true, notchWidth: 185, notchHeight: 32)
         panelState.expanded = true
         panelState.snapshot = true
         panelState.fileName = file.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
@@ -216,6 +220,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         show.keyEquivalentModifierMask = ctrlOpt
         menu.addItem(show)
 
+        let pin = NSMenuItem(title: "Keep Panel Open", action: #selector(togglePin), keyEquivalent: "p")
+        pin.keyEquivalentModifierMask = ctrlOpt
+        pin.state = panelState.pinned ? .on : .off
+        pin.toolTip = "Keeps the expanded panel open when the pointer leaves it. Drag its bottom-right corner to resize."
+        menu.addItem(pin)
+
         let showOn = NSMenuItem(title: "Show On", action: nil, keyEquivalent: "")
         let screensMenu = NSMenu()
         let follow = NSMenuItem(title: "Display You're Working On", action: #selector(pinScreen(_:)), keyEquivalent: "")
@@ -252,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(keyCode: KeyCode.q, modifiers: mods) { NSApp.terminate(nil) }
         hotKeys.register(keyCode: KeyCode.c, modifiers: mods) { [weak self] in self?.runner.checkNext() }
         hotKeys.register(keyCode: KeyCode.u, modifiers: mods) { [weak self] in self?.toggleCountUp() }
+        hotKeys.register(keyCode: KeyCode.p, modifiers: mods) { [weak self] in self?.togglePin() }
     }
 
     // MARK: Actions
@@ -273,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func reloadFromMenu() { reload(force: true) }
     @objc private func clearRecents() { recents = []; rebuildMenu() }
     @objc private func tickNext() { runner.checkNext() }
+    @objc private func togglePin() { panel.togglePin(); rebuildMenu() }
 
     private let pinnedScreenKey = "pinnedScreen"
 
@@ -384,7 +396,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let routine = try Parser.parse(text)
             runner.load(routine)
             runner.countUp = (UserDefaults.standard.stringArray(forKey: countUpKey) ?? []).contains(url.path)
-            panel.setTall(runner.hasChecklist)
             currentURL = url
             panelState.fileName = url.deletingPathExtension().lastPathComponent
             panelState.pendingReload = false
