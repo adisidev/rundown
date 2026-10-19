@@ -26,7 +26,7 @@ struct NotchView: View {
                     expandedBody
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .transition(.opacity)
                 }
@@ -373,7 +373,7 @@ struct NotchView: View {
                 .monospacedDigit()
                 .foregroundStyle(timeColor)
             }
-            .padding(.vertical, 1)
+            .padding(.vertical, 5)
             .background {
                 if isCurrent, let p = runner.progress {
                     GeometryReader { geo in
@@ -387,11 +387,11 @@ struct NotchView: View {
             .contentShape(Rectangle())
             .onTapGesture { runner.jump(to: i) }
             if showItems {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(isCurrent ? seg.items : open) { item in itemRow(item, missed: done && !isCurrent) }
                 }
-                .padding(.leading, 24)
-                .padding(.top, 3)
+                .padding(.leading, 18)
+                .padding(.top, 2)
             }
         }
         .padding(.vertical, 4)
@@ -403,22 +403,24 @@ struct NotchView: View {
         let on = runner.isChecked(item)
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: on ? "checkmark.square.fill" : "square")
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundStyle(on ? Color.green : (missed ? Color.orange : Color.secondary))
             Text(item.text)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .lineLimit(2)
                 .strikethrough(on, color: .secondary)
                 .foregroundStyle(on ? AnyShapeStyle(.secondary) : AnyShapeStyle(missed ? Color.orange : Color.primary))
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .frame(minHeight: 28)
         .contentShape(Rectangle())
         .onTapGesture { runner.toggle(item) }
     }
 
     private var controls: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 6) {
             control("backward.end.fill", enabled: runner.hasStarted) { runner.previous() }
             control(runner.state == .running ? "pause.fill" : "play.fill", enabled: runner.hasRoutine && runner.state != .finished) {
                 actions.playPause()
@@ -431,6 +433,9 @@ struct NotchView: View {
                     Label("copy missed", systemImage: "doc.on.doc")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -439,6 +444,9 @@ struct NotchView: View {
                     Label("file changed · reload", systemImage: "arrow.clockwise")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -448,8 +456,10 @@ struct NotchView: View {
             control("square.and.pencil", enabled: true) { actions.scratch() }
             control("pencil", enabled: state.fileName != nil) { actions.edit() }
             control("power", enabled: true) { actions.quit() }
+            // Leave the bottom-right corner to the resize grip.
+            Color.clear.frame(width: 14, height: 1)
         }
-        .padding(.top, 2)
+        .padding(.horizontal, -6)
     }
 
     /// Bottom-right corner grip: drag to resize (width grows on both sides, since the panel stays centred),
@@ -465,7 +475,7 @@ struct NotchView: View {
         }
         .stroke(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
         .frame(width: 12, height: 12)
-        .padding(5)
+        .padding(9)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 1)
@@ -487,15 +497,15 @@ struct NotchView: View {
         )
         .onTapGesture(count: 2) { actions.resizeReset() }
         .help("Drag to resize · double-click to reset")
-        .padding(.trailing, 3)
-        .padding(.bottom, 3)
+        .padding(.trailing, 0)
+        .padding(.bottom, 0)
     }
 
     private func control(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 22, height: 22)
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

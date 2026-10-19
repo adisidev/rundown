@@ -18,7 +18,7 @@ struct NotchGeometry: Equatable {
     var expandedWidth: CGFloat { max(compactWidth, bodyWidth) }
     var expandedHeight: CGFloat { compactHeight + bodyHeight }
 
-    static let defaultBody = CGSize(width: 440, height: 216)
+    static let defaultBody = CGSize(width: 440, height: 240)
     static let minBody = CGSize(width: 360, height: 150)
 
     static let pill = NotchGeometry(hasNotch: false, notchWidth: 0, notchHeight: 0)
