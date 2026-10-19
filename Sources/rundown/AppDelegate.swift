@@ -48,7 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if state == .finished { DispatchQueue.main.async { self?.writeRunLog() } }
         }.store(in: &cancellables)
 
+        launched = true
         let args = CommandLine.arguments.dropFirst()
+        if let url = pendingURL {
+            load(url)
+            return
+        }
         if let i = args.firstIndex(of: "--snapshot"), args.indices.contains(i + 1) {
             MainActor.assumeIsolated { snapshot(file: args.first(where: { !$0.hasPrefix("-") && $0 != args[i + 1] }), to: args[i + 1]) }
             return
@@ -62,8 +67,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A file handed over by Finder / `open -a rundown file.md` can arrive before launch has finished; it waits here.
+    private var launched = false
+    private var pendingURL: URL?
+
     func application(_ application: NSApplication, open urls: [URL]) {
-        if let url = urls.first { load(url) }
+        guard let url = urls.first else { return }
+        if launched { load(url) } else { pendingURL = url }
     }
 
     /// `--snapshot <out.png> [file]`: renders the expanded panel mid-run (12 minutes in, on the second segment, a few
