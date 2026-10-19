@@ -5,6 +5,7 @@
 # One-time setup:
 #   - a "Developer ID Application" certificate and its private key, in the login keychain or in SIGNING_KEYCHAIN
 #   - notary credentials: xcrun notarytool store-credentials rundown-notary --key <AuthKey.p8> --key-id <id> --issuer <uuid>
+#     (add --keychain "$SIGNING_KEYCHAIN" to keep them in the signing keychain, which also works over ssh)
 #
 # Usage: scripts/release.sh [--publish]
 set -euo pipefail
@@ -40,7 +41,7 @@ codesign --verify --strict --verbose=2 "$BUNDLE"
 
 echo "→ notarising (usually a few minutes)"
 ditto -c -k --keepParent "$BUNDLE" "$ZIP"
-xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" "${KEYCHAIN_ARGS[@]}" --wait
 xcrun stapler staple "$BUNDLE"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$BUNDLE" "$ZIP"
