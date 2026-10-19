@@ -19,6 +19,10 @@ public final class Runner: ObservableObject {
     @Published public private(set) var actual: [TimeInterval] = []
     @Published public private(set) var currentStart: Date?
     @Published public private(set) var startedAt: Date?
+    /// Ids of ticked checklist items. Every run starts with nothing ticked, so one file is a reusable playbook.
+    @Published public private(set) var checked: Set<Int> = []
+    /// Count everything up and ignore planned durations (no countdowns, no pace).
+    @Published public var countUp = false
 
     public var now: () -> Date
     /// |drift| below this counts as on track.
@@ -49,7 +53,36 @@ public final class Runner: ObservableObject {
         actual = Array(repeating: 0, count: segments.count)
         currentStart = nil
         startedAt = nil
+        checked = []
     }
+
+    // MARK: Checklist
+
+    public func isChecked(_ item: ChecklistItem) -> Bool { checked.contains(item.id) }
+
+    public func toggle(_ item: ChecklistItem) {
+        if checked.contains(item.id) { checked.remove(item.id) } else { checked.insert(item.id) }
+    }
+
+    /// Ticks the first unticked item of the current segment and returns it (nil if there is none).
+    @discardableResult
+    public func checkNext() -> ChecklistItem? {
+        guard let item = current?.items.first(where: { !checked.contains($0.id) }) else { return nil }
+        checked.insert(item.id)
+        return item
+    }
+
+    public func openItems(in i: Int) -> [ChecklistItem] {
+        guard segments.indices.contains(i) else { return [] }
+        return segments[i].items.filter { !checked.contains($0.id) }
+    }
+
+    public var itemCount: Int { routine?.items.count ?? 0 }
+    public var checkedCount: Int { checked.count }
+    public var hasChecklist: Bool { itemCount > 0 }
+
+    /// Unticked items in segments already left behind (or all of them once finished).
+    public var missedCount: Int { segments.indices.filter(isDone).map { openItems(in: $0).count }.reduce(0, +) }
 
     public func start() {
         guard state == .idle, hasRoutine else { return }
@@ -143,11 +176,20 @@ public final class Runner: ObservableObject {
         return a
     }
 
+    /// Planned duration of segment `i` as this run treats it: nil for stopwatch segments and in count-up mode.
+    public func planned(_ i: Int) -> TimeInterval? {
+        guard !countUp, segments.indices.contains(i) else { return nil }
+        return segments[i].planned
+    }
+
+    /// No countdowns at all: count-up mode, or a routine without a single duration.
+    public var isUntimed: Bool { countUp || routine?.plannedTotal ?? 0 == 0 }
+
     public var currentElapsed: TimeInterval { current == nil ? 0 : actualFor(index) }
 
     /// Planned minus elapsed for the current segment; negative when over. Nil for stopwatch segments.
     public var currentRemaining: TimeInterval? {
-        guard let p = current?.planned else { return nil }
+        guard let p = planned(index) else { return nil }
         return p - currentElapsed
     }
 
@@ -160,16 +202,16 @@ public final class Runner: ObservableObject {
     /// Stopwatch segments never contribute.
     public var drift: TimeInterval {
         var d: TimeInterval = 0
-        for (i, seg) in segments.enumerated() where isDone(i) {
-            if let p = seg.planned { d += actualFor(i) - p }
+        for i in segments.indices where isDone(i) {
+            if let p = planned(i) { d += actualFor(i) - p }
         }
-        if state == .running || state == .paused, let p = current?.planned {
+        if state == .running || state == .paused, let p = planned(index) {
             d += max(0, currentElapsed - p)
         }
         return d
     }
 
-    public var plannedTotal: TimeInterval { routine?.plannedTotal ?? 0 }
+    public var plannedTotal: TimeInterval { countUp ? 0 : routine?.plannedTotal ?? 0 }
 
     /// Planned time still to go: what's left of the current segment plus all future planned segments.
     public var totalRemaining: TimeInterval {
@@ -178,7 +220,7 @@ public final class Runner: ObservableObject {
         case .finished: return 0
         case .running, .paused:
             let future = index + 1 < segments.count
-                ? segments[(index + 1)...].compactMap(\.planned).reduce(0, +)
+                ? ((index + 1)..<segments.count).compactMap(planned).reduce(0, +)
                 : 0
             return max(0, currentRemaining ?? 0) + future
         }
@@ -198,7 +240,7 @@ public final class Runner: ObservableObject {
 
     /// 0…1 through the current timed segment; nil for stopwatch segments.
     public var progress: Double? {
-        guard let p = current?.planned, p > 0 else { return nil }
+        guard let p = planned(index), p > 0 else { return nil }
         return min(1, max(0, currentElapsed / p))
     }
 }

@@ -22,7 +22,7 @@ final class ParserTests: XCTestCase {
         + 1h30m long section
         1. 5 bare minutes
         2) ? questions
-        - [ ] ~ open floor
+        - ~ open floor
         - no duration at all
         - 2m30s **bold name**
         ---

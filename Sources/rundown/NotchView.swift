@@ -63,6 +63,8 @@ struct NotchView: View {
             Button(runner.state == .running ? "Pause" : "Start / Resume") { actions.playPause() }
                 .disabled(!runner.hasRoutine || runner.state == .finished)
             Button("Reset") { runner.reset() }.disabled(!runner.hasStarted)
+            Button("Tick Next Item") { runner.checkNext() }.disabled(runner.openItems(in: runner.index).isEmpty)
+            Toggle("Count Up (ignore durations)", isOn: Binding(get: { runner.countUp }, set: { actions.setCountUp($0) }))
             Divider()
             Button("Quit rundown") { actions.quit() }
         }
@@ -99,6 +101,7 @@ struct NotchView: View {
                 .fixedSize()
                 .layoutPriority(1)
             paceChip
+            checklistChip
             Spacer(minLength: 0)
         }
         .padding(.leading, 8)
@@ -117,7 +120,7 @@ struct NotchView: View {
         switch runner.state {
         case .idle:
             guard runner.hasRoutine else { return "" }
-            return runner.current?.planned.map { Duration.format($0) } ?? "⏱"
+            return runner.planned(runner.index).map { Duration.format($0) } ?? "⏱"
         case .finished:
             return Duration.format(runner.totalElapsed)
         case .running, .paused:
@@ -137,6 +140,9 @@ struct NotchView: View {
     }
 
     private var totalLabel: String {
+        if runner.isUntimed, runner.hasRoutine {
+            return runner.state == .idle ? "⏱" : Duration.format(runner.totalElapsed)
+        }
         switch runner.state {
         case .idle: return runner.hasRoutine ? Duration.format(runner.plannedTotal) : "open a routine"
         case .finished: return Duration.format(runner.drift, signed: true)
@@ -144,25 +150,51 @@ struct NotchView: View {
         }
     }
 
+    /// Ticked / total for the current segment's checklist; after the run, how many were missed overall.
+    @ViewBuilder private var checklistChip: some View {
+        if runner.state == .finished, runner.hasChecklist {
+            let missed = runner.missedCount
+            Label(missed == 0 ? "all" : "\(missed)", systemImage: missed == 0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .labelStyle(.titleAndIcon)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(missed == 0 ? .green : .orange)
+        } else if let seg = runner.current, !seg.items.isEmpty {
+            let done = seg.items.count - runner.openItems(in: runner.index).count
+            Label("\(done)/\(seg.items.count)", systemImage: "checklist")
+                .labelStyle(.titleOnly)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundStyle(done == seg.items.count ? Color.green : Color.white.opacity(0.8))
+        }
+    }
+
+    /// The right wing is too narrow for both the pace amount and the checklist count; with a checklist showing,
+    /// the pace chip drops its number (the expanded view still has it).
+    private var compactChecklist: Bool { !(runner.current?.items.isEmpty ?? true) && runner.state != .finished }
+
     @ViewBuilder private var paceChip: some View {
-        if runner.hasStarted, runner.state != .finished {
+        if runner.isUntimed {
+            EmptyView()
+        } else if runner.hasStarted, runner.state != .finished {
             switch runner.pace {
             case .onTrack:
                 Circle().fill(.green).frame(width: 7, height: 7)
             case .behind(let by):
                 Label(Duration.format(by), systemImage: "arrowtriangle.up.fill")
-                    .labelStyle(.titleAndIcon)
+                    .labelStyle(compactChecklist ? AnyLabelStyle(.iconOnly) : AnyLabelStyle(.titleAndIcon))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.red)
             case .ahead(let by):
                 Label(Duration.format(by), systemImage: "arrowtriangle.down.fill")
-                    .labelStyle(.titleAndIcon)
+                    .labelStyle(compactChecklist ? AnyLabelStyle(.iconOnly) : AnyLabelStyle(.titleAndIcon))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.green)
             }
-        } else if runner.state == .idle, runner.hasRoutine {
+        } else if runner.state == .idle, runner.hasRoutine, runner.current?.items.isEmpty ?? true {
             Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.secondary)
         } else if runner.state == .finished {
             Text(runner.drift > 0 ? "over" : "under").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -189,6 +221,10 @@ struct NotchView: View {
                 .foregroundStyle(state.loadError == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
 
             if runner.hasRoutine {
+                if state.snapshot {
+                    VStack(spacing: 2) { ForEach(runner.segments) { row($0) } }
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 2) {
@@ -201,6 +237,7 @@ struct NotchView: View {
                     .onChange(of: expanded) { _, e in if e { proxy.scrollTo(runner.index, anchor: .center) } }
                 }
                 .frame(maxHeight: .infinity)
+                }
             } else {
                 Text("Open a .md file, or start a scratch routine (✎) and edit it in your markdown editor: `5m intro, 10m demo, ? questions` — one line or one segment per line.")
                     .font(.system(size: 11))
@@ -213,6 +250,16 @@ struct NotchView: View {
     }
 
     private var paceSentence: String {
+        if runner.isUntimed || runner.state == .finished, runner.hasChecklist, runner.hasStarted {
+            let missed = runner.missedCount
+            if runner.state == .finished { return missed == 0 ? "everything covered" : "\(missed) missed" }
+            let open = runner.itemCount - runner.checkedCount
+            if missed > 0 { return "\(missed) missed · \(open) open" }
+            return open == 0 ? "everything covered" : "\(open) open"
+        }
+        if runner.isUntimed, runner.hasStarted {
+            return runner.state == .finished ? "finished" : "counting up"
+        }
         switch runner.state {
         case .idle: return runner.hasRoutine ? "ready" : ""
         case .finished:
@@ -230,6 +277,10 @@ struct NotchView: View {
 
     private var paceColor: Color {
         guard runner.hasStarted else { return .secondary }
+        if runner.isUntimed || runner.state == .finished, runner.hasChecklist {
+            return runner.missedCount > 0 ? .orange : (runner.checkedCount == runner.itemCount ? .green : .secondary)
+        }
+        if runner.isUntimed { return .secondary }
         if runner.state == .finished {
             return abs(runner.drift) < runner.paceTolerance ? .green : (runner.drift > 0 ? .red : .green)
         }
@@ -245,13 +296,27 @@ struct NotchView: View {
         switch runner.state {
         case .idle:
             guard runner.hasRoutine else { return "nothing loaded" }
-            let sw = runner.segments.filter(\.isStopwatch).count
-            var s = "\(runner.segments.count) segments · \(Duration.format(runner.plannedTotal)) planned"
-            if sw > 0 { s += " · \(sw) open-ended" }
+            var s = "\(runner.segments.count) segments"
+            if runner.isUntimed {
+                s += " · counts up"
+            } else {
+                s += " · \(Duration.format(runner.plannedTotal)) planned"
+                let sw = runner.segments.indices.filter { runner.planned($0) == nil }.count
+                if sw > 0 { s += " · \(sw) open-ended" }
+            }
+            if runner.hasChecklist { s += " · \(runner.itemCount) to cover" }
             return s
         case .finished:
-            return "took \(Duration.format(runner.totalElapsed)) of \(Duration.format(runner.plannedTotal))"
+            var s = "took \(Duration.format(runner.totalElapsed))"
+            if !runner.isUntimed { s += " of \(Duration.format(runner.plannedTotal))" }
+            if runner.hasChecklist { s += " · \(runner.checkedCount)/\(runner.itemCount) covered" }
+            return s
         case .running, .paused:
+            if runner.isUntimed {
+                var s = "started \((runner.startedAt ?? runner.now()).formatted(clock)) · \(Duration.format(runner.totalElapsed)) in"
+                if runner.hasChecklist { s += " · \(runner.checkedCount)/\(runner.itemCount) covered" }
+                return s
+            }
             var s = "ends \(runner.projectedEnd.formatted(clock))"
             if let p = runner.plannedEnd { s += " · planned \(p.formatted(clock))" }
             s += " · \(Duration.format(runner.totalRemaining)) left"
@@ -264,15 +329,22 @@ struct NotchView: View {
         let isCurrent = i == runner.index && runner.state != .finished
         let done = runner.isDone(i)
         let actual = runner.actualFor(i)
-        let plannedText = seg.planned.map { Duration.format($0) } ?? "∞"
-        let timeText: String = (done || isCurrent) ? "\(Duration.format(actual)) / \(plannedText)" : plannedText
+        let planned = runner.planned(i)
+        let plannedText = planned.map { Duration.format($0) } ?? "∞"
+        let timeText: String = {
+            guard done || isCurrent else { return planned == nil && runner.isUntimed ? "" : plannedText }
+            return planned == nil ? Duration.format(actual) : "\(Duration.format(actual)) / \(plannedText)"
+        }()
+        let open = runner.openItems(in: i)
+        let showItems = !seg.items.isEmpty && (isCurrent || (done && !open.isEmpty))
         let timeColor: Color = {
-            guard done || isCurrent, let p = seg.planned else { return done || isCurrent ? .white : .secondary }
+            guard done || isCurrent, let p = planned else { return done || isCurrent ? .white : .secondary }
             if actual > p { return .red }
             return done ? .green : .white
         }()
 
-        return HStack(spacing: 8) {
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
             Text("\(i + 1)")
                 .font(.system(size: 11, design: .rounded))
                 .monospacedDigit()
@@ -283,27 +355,59 @@ struct NotchView: View {
                 .lineLimit(1)
                 .foregroundStyle(done && !isCurrent ? .secondary : .primary)
             Spacer()
+            if !seg.items.isEmpty, !showItems {
+                Text("\(seg.items.count - open.count)/\(seg.items.count)")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(open.isEmpty ? Color.green : Color.secondary)
+            }
             Text(timeText)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(timeColor)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background {
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 6).fill(.white.opacity(isCurrent ? 0.10 : 0))
+            }
+            .padding(.vertical, 1)
+            .background {
                 if isCurrent, let p = runner.progress {
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 6)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill((runner.currentRemaining ?? 0) < 0 ? Color.red.opacity(0.35) : Color.white.opacity(0.16))
                             .frame(width: geo.size.width * p)
                     }
+                    .padding(.horizontal, -4)
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { runner.jump(to: i) }
+            if showItems {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(isCurrent ? seg.items : open) { item in itemRow(item, missed: done && !isCurrent) }
+                }
+                .padding(.leading, 24)
+                .padding(.top, 3)
+            }
         }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(isCurrent ? 0.10 : 0)))
+    }
+
+    private func itemRow(_ item: ChecklistItem, missed: Bool) -> some View {
+        let on = runner.isChecked(item)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: on ? "checkmark.square.fill" : "square")
+                .font(.system(size: 11))
+                .foregroundStyle(on ? Color.green : (missed ? Color.orange : Color.secondary))
+            Text(item.text)
+                .font(.system(size: 11))
+                .lineLimit(2)
+                .strikethrough(on, color: .secondary)
+                .foregroundStyle(on ? AnyShapeStyle(.secondary) : AnyShapeStyle(missed ? Color.orange : Color.primary))
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .onTapGesture { runner.jump(to: i) }
+        .onTapGesture { runner.toggle(item) }
     }
 
     private var controls: some View {
@@ -315,6 +419,14 @@ struct NotchView: View {
             control("forward.end.fill", enabled: runner.state == .running || runner.state == .paused) { runner.next() }
             control("arrow.counterclockwise", enabled: runner.hasStarted) { runner.reset() }
             Spacer()
+            if runner.state == .finished, runner.missedCount > 0 {
+                Button { actions.copyMissed() } label: {
+                    Label("copy missed", systemImage: "doc.on.doc")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+            }
             if state.pendingReload {
                 Button { actions.reload() } label: {
                     Label("file changed · reload", systemImage: "arrow.clockwise")
@@ -342,4 +454,10 @@ struct NotchView: View {
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)
     }
+}
+
+private struct AnyLabelStyle: LabelStyle {
+    private let make: (Configuration) -> AnyView
+    init<S: LabelStyle>(_ style: S) { make = { AnyView(Label($0).labelStyle(style)) } }
+    func makeBody(configuration: Configuration) -> some View { make(configuration) }
 }

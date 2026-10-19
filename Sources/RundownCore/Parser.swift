@@ -1,15 +1,28 @@
 import Foundation
 
+/// Something to cover during a segment, written as a `- [ ]` line under it. Ids are unique across the routine.
+public struct ChecklistItem: Equatable, Identifiable {
+    public let id: Int
+    public var text: String
+
+    public init(id: Int, text: String) {
+        self.id = id
+        self.text = text
+    }
+}
+
 public struct Segment: Equatable, Identifiable {
     public let id: Int
     public var name: String
     /// Planned duration in seconds; nil means a stopwatch segment (open-ended).
     public var planned: TimeInterval?
+    public var items: [ChecklistItem]
 
-    public init(id: Int, name: String, planned: TimeInterval?) {
+    public init(id: Int, name: String, planned: TimeInterval?, items: [ChecklistItem] = []) {
         self.id = id
         self.name = name
         self.planned = planned
+        self.items = items
     }
 
     public var isStopwatch: Bool { planned == nil }
@@ -25,6 +38,7 @@ public struct Routine: Equatable {
     }
 
     public var plannedTotal: TimeInterval { segments.compactMap(\.planned).reduce(0, +) }
+    public var items: [ChecklistItem] { segments.flatMap(\.items) }
 }
 
 public enum ParseError: Error, LocalizedError, Equatable {
@@ -42,7 +56,9 @@ public enum ParseError: Error, LocalizedError, Equatable {
 /// Rules:
 /// - The first `# Heading` becomes the title. Other heading lines are ignored.
 /// - Blank lines and lines starting with `>`, `<!--` or `---` are ignored.
-/// - List bullets (`- `, `* `, `+ `, `1. `, `1)`) and checkboxes (`[ ]`, `[x]`) are stripped.
+/// - List bullets (`- `, `* `, `+ `, `1. `, `1)`) are stripped.
+/// - A checkbox line (`- [ ] UEN number`, `[x]` too) is a checklist item of the segment above it, taken verbatim
+///   (commas allowed). Checkboxes before any segment go into an open-ended "Checklist" segment.
 /// - Each remaining line is split on commas; every piece is one segment.
 /// - A segment is `<duration> <name>` or `<name> <duration>`. Duration: `5m`, `90s`, `1h30m`, `2:30`, `1:05:00`.
 ///   A bare integer prefix (`5 intro`) means minutes. `?`, `~` or `∞` — or no duration at all — makes a stopwatch segment.
@@ -50,6 +66,7 @@ public enum Parser {
     public static func parse(_ text: String) throws -> Routine {
         var title: String?
         var segments: [Segment] = []
+        var itemCount = 0
 
         for rawLine in text.components(separatedBy: .newlines) {
             var line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -62,6 +79,13 @@ public enum Parser {
                 continue
             }
             line = stripBullet(line)
+            if let item = checkboxText(line) {
+                if item.isEmpty { continue }
+                if segments.isEmpty { segments.append(Segment(id: 0, name: "Checklist", planned: nil)) }
+                segments[segments.count - 1].items.append(ChecklistItem(id: itemCount, text: item))
+                itemCount += 1
+                continue
+            }
             if line.isEmpty { continue }
 
             for piece in line.split(separator: ",") {
@@ -90,11 +114,15 @@ public enum Parser {
                 }
             }
         }
-        var out = s.trimmingCharacters(in: .whitespaces)
-        for box in ["[ ]", "[x]", "[X]"] where out.hasPrefix(box) {
-            out = String(out.dropFirst(box.count)).trimmingCharacters(in: .whitespaces)
+        return s.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The item text if `line` (bullet already stripped) starts with a checkbox, else nil.
+    static func checkboxText(_ line: String) -> String? {
+        for box in ["[ ]", "[x]", "[X]"] where line.hasPrefix(box) {
+            return String(line.dropFirst(box.count)).trimmingCharacters(in: .whitespaces)
         }
-        return out
+        return nil
     }
 
     enum DurationToken: Equatable {

@@ -1,6 +1,10 @@
 # rundown
 
-A talk/routine pacer that lives in the MacBook notch. Write your segments as markdown, hit start, and glance up to see how long the current segment has left, how much of the whole thing remains, and whether to speed up or slow down. A broadcast *rundown* is the timed list of segments for a show; the timers run down.
+A talk/routine pacer that lives in the MacBook notch. Write your segments as markdown, hit start, and glance up to see how long the current segment has left, how much of the whole thing remains, and whether to speed up or slow down. Segments can carry a checklist of things to cover, so the same file works as a reusable playbook for meetings: every run starts unticked, and at the end you get the list of what was missed. A broadcast *rundown* is the timed list of segments for a show; the timers run down.
+
+## Install
+
+Download [rundown.zip](https://github.com/adisidev/rundown/releases/latest/download/rundown.zip), unzip it, drag `rundown.app` to Applications and open it. It's signed and notarised and needs macOS 14 or later. Macs without a notch get the same panel at the top centre of the screen, plus the time in the menu bar.
 
 ## Format
 
@@ -22,10 +26,25 @@ or one segment per line (bullets optional), and both can be mixed:
 - wrap-up 2:30
 ```
 
+- A checkbox line (`- [ ] total amount requested`) is a **checklist item** of the segment above it. Item text is taken as written, commas included. Checkboxes before the first segment go into an open-ended "Checklist" segment, so a file of nothing but checkboxes is a plain checklist.
 - A segment is `<duration> <name>` or `<name> <duration>`. Durations: `5m`, `90s`, `1h30m`, `2m30s`, `2:30`, `1:05:00`. A bare number as a prefix means minutes (`5 intro`).
 - `?`, `~` or `∞` — or no duration at all — makes a **stopwatch** segment: it counts up and never counts as behind or ahead.
 - The first `# Heading` is the title. Other headings, blank lines, and lines starting with `>`, `<!--` or `---` are ignored. List bullets (`-`, `*`, `+`, `1.`, `1)`) and checkboxes are stripped.
 - Segment names can't contain commas (commas always split segments).
+
+A meeting playbook (`examples/grant-intake.md`):
+
+```
+# Grant intake
+
+- 5m who's applying
+  - [ ] organisation name and registration number
+  - [ ] contact person, role, email
+- 15m budget
+  - [ ] total amount requested
+  - [ ] itemised lines with quotes
+- ? anything else
+```
 
 See `examples/`.
 
@@ -36,12 +55,18 @@ Compact (the notch wings):
 - **Left:** current segment name and its countdown. Turns orange under 30s, red with a `+1:23` once you're over. Stopwatch segments show `⏱ elapsed`.
 - **Right:** time remaining for the whole routine, and a pace chip: green dot = on track, red `▲ 1:20` = behind by 1:20 (speed up), green `▼ 0:45` = ahead (you can slow down).
 
-Hover to expand: title, projected finish time next to the planned one, `speed up · behind 1:20` / `slow down · ahead 0:45` / `on track`, the full segment list with actual/planned and a progress bar on the current one (click a row to jump), and prev / play-pause / next / reset controls.
+With a checklist, the right wing also shows how much of the current segment is ticked (`☑ 1/3`, green once complete).
+
+Hover to expand: title, projected finish time next to the planned one, `speed up · behind 1:20` / `slow down · ahead 0:45` / `on track`, the full segment list with actual/planned and a progress bar on the current one (click a row to jump), the current segment's checklist (click an item to tick it; the panel never takes focus, so you can tick things during a call without leaving it), anything left unticked in earlier segments in orange, and prev / play-pause / next / reset controls.
 
 Definitions:
 
 - **drift** = Σ (actual − planned) over finished timed segments + the overtime of the current segment. Finishing a segment early puts you ahead; running over puts you behind as it happens. |drift| < 20s counts as on track.
 - **remaining** = what's left of the current segment (never negative) + all future planned segments. **Projected end** = now + remaining, so it slips forward as you run over.
+
+**Count up.** Menu bar → Count Up (or `⌃⌥U`) runs the same file as a stopwatch: every segment counts up and there are no countdowns or pace. Durations stay in the file, so you can switch either way. It's remembered per file.
+
+**After a run.** When the last segment ends, rundown saves a markdown log (times per segment, ticked and missed items) in `~/Library/Application Support/rundown/runs/`; menu bar → Show Past Runs opens it. "copy missed" in the expanded view (or menu bar → Copy Missed Items) copies the missed items grouped by segment, ready for a follow-up message.
 
 The menu bar item also shows the total remaining, which is handy on an external display where the notch panel isn't.
 
@@ -55,6 +80,8 @@ Global hotkeys (no Accessibility permission needed):
 | `⌃⌥→` | next segment |
 | `⌃⌥←` | previous segment (keeps accumulating into it) |
 | `⌃⌥R` | reset |
+| `⌃⌥C` | tick the next item in the current segment |
+| `⌃⌥U` | count up on/off |
 | `⌃⌥N` | hide / show the panel |
 | `⌃⌥Q` | quit |
 
@@ -77,6 +104,10 @@ open -a rundown --args --scratch   # jump straight into the scratch routine
 ```
 
 With no argument it reopens the last routine.
+
+## Releasing
+
+`make release` (or `scripts/release.sh --publish`) builds a universal app, signs it with the Developer ID in the keychain, notarises and staples it, and zips it to `build/rundown.zip`; `--publish` also creates the GitHub release for the version in `Info.plist`. The one-time setup is at the top of the script.
 
 ## Presenting
 

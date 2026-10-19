@@ -79,6 +79,12 @@ final class NotchPanelController {
 
     var isVisible: Bool { panel.isVisible }
 
+    func setTall(_ tall: Bool) {
+        guard state.geometry.tall != tall else { return }
+        state.geometry.tall = tall
+        layout()
+    }
+
     func toggleVisibility() {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
@@ -90,11 +96,13 @@ final class NotchPanelController {
         guard let screen = notched ?? NSScreen.main ?? screens.first else { return }
 
         var g = NotchGeometry.pill
+        g.tall = state.geometry.tall
         var centerX = screen.frame.midX
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea, screen.safeAreaInsets.top > 0 {
             g = NotchGeometry(hasNotch: true,
                               notchWidth: right.minX - left.maxX,
-                              notchHeight: screen.safeAreaInsets.top)
+                              notchHeight: screen.safeAreaInsets.top,
+                              tall: g.tall)
             centerX = (left.maxX + right.minX) / 2
         }
         state.geometry = g

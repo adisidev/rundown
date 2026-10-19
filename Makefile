@@ -3,7 +3,7 @@ BUNDLE   = build/$(APP).app
 BIN      = $(shell swift build -c release --show-bin-path 2>/dev/null)/$(APP)
 FILE    ?= examples/talk.md
 
-.PHONY: build app run install test clean
+.PHONY: build app run install test clean release
 
 build:
 	swift build -c release
@@ -27,6 +27,9 @@ install: app
 
 test:
 	swift test
+
+release:
+	scripts/release.sh
 
 clean:
 	rm -rf .build build
