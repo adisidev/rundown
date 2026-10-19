@@ -3,7 +3,7 @@
 # build/rundown.zip, ready to attach to a GitHub release. Add --publish to also create the release.
 #
 # One-time setup:
-#   - a "Developer ID Application" certificate (and its private key) in the login keychain
+#   - a "Developer ID Application" certificate and its private key, in the login keychain or in SIGNING_KEYCHAIN
 #   - notary credentials: xcrun notarytool store-credentials rundown-notary --key <AuthKey.p8> --key-id <id> --issuer <uuid>
 #
 # Usage: scripts/release.sh [--publish]
@@ -15,7 +15,15 @@ BUNDLE=build/$APP.app
 ZIP=build/$APP.zip
 PROFILE=${NOTARY_PROFILE:-rundown-notary}
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Info.plist)
-IDENTITY=${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application: .*\)"/\1/p' | head -1)}
+# Optional dedicated keychain (unlocked here so codesign never waits on a GUI password prompt):
+# SIGNING_KEYCHAIN, with its password in the file next to it named keychain-pass.
+KEYCHAIN=${SIGNING_KEYCHAIN:-$HOME/.config/rundown-signing/signing.keychain-db}
+KEYCHAIN_ARGS=()
+if [ -f "$KEYCHAIN" ]; then
+  security unlock-keychain -p "$(cat "$(dirname "$KEYCHAIN")/keychain-pass")" "$KEYCHAIN"
+  KEYCHAIN_ARGS=(--keychain "$KEYCHAIN")
+fi
+IDENTITY=${SIGN_IDENTITY:-$(security find-identity -v -p codesigning ${KEYCHAIN_ARGS[1]:+"${KEYCHAIN_ARGS[1]}"} | sed -n 's/.*"\(Developer ID Application: .*\)"/\1/p' | head -1)}
 [ -n "$IDENTITY" ] || { echo "No Developer ID Application identity in the keychain." >&2; exit 1; }
 
 echo "→ rundown $VERSION, signing as: $IDENTITY"
@@ -27,7 +35,7 @@ rm -rf "$BUNDLE" "$ZIP"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN" "$BUNDLE/Contents/MacOS/$APP"
 cp Info.plist "$BUNDLE/Contents/Info.plist"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$BUNDLE"
+codesign --force --options runtime --timestamp "${KEYCHAIN_ARGS[@]}" --sign "$IDENTITY" "$BUNDLE"
 codesign --verify --strict --verbose=2 "$BUNDLE"
 
 echo "→ notarising (usually a few minutes)"
