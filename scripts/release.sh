@@ -23,6 +23,9 @@ KEYCHAIN_ARGS=()
 if [ -f "$KEYCHAIN" ]; then
   security unlock-keychain -p "$(cat "$(dirname "$KEYCHAIN")/keychain-pass")" "$KEYCHAIN"
   KEYCHAIN_ARGS=(--keychain "$KEYCHAIN")
+  # codesign only finds identities in keychains on the search list
+  security list-keychains -d user | grep -q "$KEYCHAIN" ||
+    security list-keychains -d user -s $(security list-keychains -d user | tr -d '"') "$KEYCHAIN"
 fi
 IDENTITY=${SIGN_IDENTITY:-$(security find-identity -v -p codesigning ${KEYCHAIN_ARGS[1]:+"${KEYCHAIN_ARGS[1]}"} | sed -n 's/.*"\(Developer ID Application: .*\)"/\1/p' | head -1)}
 [ -n "$IDENTITY" ] || { echo "No Developer ID Application identity in the keychain." >&2; exit 1; }
