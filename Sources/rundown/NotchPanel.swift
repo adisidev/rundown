@@ -105,7 +105,7 @@ final class NotchPanelController {
     private var lastScreen: String?
 
     /// The display holding the frontmost app's frontmost window (window bounds need no permission), else the
-    /// display with the menu bar.
+    /// display with the pointer.
     private func activeScreen() -> NSScreen? {
         let screens = NSScreen.screens
         if let name = pinnedScreen, let s = screens.first(where: { $0.localizedName == name }) { return s }
@@ -114,7 +114,11 @@ final class NotchPanelController {
               let win = list.first(where: { ($0[kCGWindowOwnerPID as String] as? pid_t) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }),
               let dict = win[kCGWindowBounds as String] as? NSDictionary,
               let rect = CGRect(dictionaryRepresentation: dict)
-        else { return screens.first }
+        else {
+            // Frontmost app has no window (e.g. Finder with none open): use the display the pointer is on.
+            let mouse = NSEvent.mouseLocation
+            return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? screens.first
+        }
         // CG window bounds have a top-left origin on the primary display; flip to AppKit's bottom-left.
         let primaryHeight = screens.first?.frame.height ?? 0
         let center = CGPoint(x: rect.midX, y: primaryHeight - rect.midY)
